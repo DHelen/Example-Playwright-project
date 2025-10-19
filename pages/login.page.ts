@@ -1,4 +1,5 @@
 import { Page, Locator } from '@playwright/test';
+import { expect } from '../fixtures/fixtures';
 
 export class LoginPage {
   readonly page: Page;
@@ -25,5 +26,11 @@ export class LoginPage {
     await this.usernameInput.fill(username);
     await this.passwordInput.fill(password);
     await this.loginButton.click();
+  }
+
+  async successLogin() {
+    await this.goto();
+    await this.login('standard_user', 'secret_sauce');
+    await expect(this.title).toHaveText('Products');
   }
 }

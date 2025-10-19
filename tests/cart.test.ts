@@ -1,149 +1,191 @@
-import { test, expect } from '@playwright/test';
-import { LoginPage } from '../pages/login.page';
-import { ProductPage } from '../pages/products.page';
-import { CartPage } from '../pages/yourCart.page';
-import { CheckoutPage } from '../pages/checkout.page';
+import { test, expect } from '../fixtures/fixtures';
 
-test.describe.parallel('Cart page - UI tests', () => {
+test.describe('Cart page - UI tests', () => {
 
-  test('Add two products to cart and proceed to checkout', async ({ page }) => {
-    // Arrange
-    const loginPage = new LoginPage(page);
-    const productPage = new ProductPage(page);
-    const cartPage = new CartPage(page);
-    await loginPage.goto();
-    await loginPage.login('standard_user', 'secret_sauce');
-    await expect(loginPage.title).toHaveText('Products');
+  test('Add two products to cart and proceed to checkout', async ({ loginPage, productPage, cartPage, page }) => {
+    await test.step('Login to application', async () => {
+      await loginPage.successLogin();
+    });
 
-    // Act
-    const { firstProductName, secondProductName } = await productPage.addTwoProductsAndGoToCart(cartPage);
-    await cartPage.checkoutButton.click();
-    await page.waitForURL('**/checkout-step-one.html');
+    const { firstProductName, secondProductName } = await test.step('Get product information', async () => {
+      const productInfo = await productPage.getFirstTwoProductsFormattedInfo();
+      return {
+        firstProductName: productInfo.firstProductName,
+        secondProductName: productInfo.secondProductName
+      };
+    });
 
-    // Assert 
-    expect(page.url()).toContain('checkout-step-one.html');
+    await test.step('Add two products to cart by name', async () => {
+      await productPage.addProductsByNameAndGoToCart([firstProductName, secondProductName]);
+    });
+
+    await test.step('Proceed to checkout', async () => {
+      await cartPage.checkoutButton.click();
+      await page.waitForURL('**/checkout-step-one.html');
+    });
+
+    await test.step('Verify checkout page is displayed', async () => {
+      expect(page.url()).toContain('checkout-step-one.html');
+    });
   });
 
-  test('Add two products to cart and remove one', async ({ page }) => {
-    // Arrange
-    const loginPage = new LoginPage(page);
-    const productPage = new ProductPage(page);
-    const cartPage = new CartPage(page);
-    await loginPage.goto();
-    await loginPage.login('standard_user', 'secret_sauce');
-    await expect(loginPage.title).toHaveText('Products');
-    const { firstProductName, secondProductName } = await productPage.addTwoProductsAndGoToCart(cartPage);
+  test('Add two products to cart and remove one', async ({ loginPage, productPage, cartPage }) => {
+    await test.step('Login to application', async () => {
+      await loginPage.successLogin();
+    });
 
-    // Act
-    await expect(cartPage.removeButtons.first()).toBeVisible();
-    await expect(cartPage.removeButtons.first()).toBeEnabled();
-    const initialCount = await cartPage.itemQty.count();
-    await cartPage.removeButtons.first().click();
+    const { firstProductName, secondProductName, firstProductPrice, secondProductPrice } = await test.step('Get product information', async () => {
+      return await productPage.getFirstTwoProductsFormattedInfo();
+    });
 
-    // Assert 
-    await expect(cartPage.itemQty).toHaveCount(initialCount - 1, { timeout: 10000 });
-    expect(cartPage.itemQty).toHaveCount(1);
-    expect(cartPage.itemName).toHaveCount(1);
-    const remainingProductName = await cartPage.itemName.first().textContent();
-    expect([firstProductName, secondProductName]).toContain(remainingProductName);
+    await test.step('Add two products to cart by name', async () => {
+      await productPage.addProductsByNameAndGoToCart([firstProductName, secondProductName]);
+    });
+
+    await test.step('Remove first product from cart', async () => {
+      const firstProductRemoveButton = cartPage.page.locator('[data-test="inventory-item"]')
+        .filter({ hasText: firstProductName })
+        .locator('button:has-text("Remove")');
+      
+      await expect(firstProductRemoveButton).toBeVisible();
+      await expect(firstProductRemoveButton).toBeEnabled();
+      await firstProductRemoveButton.click();
+    });
+
+    await test.step('Verify second product remains in cart with price', async () => {
+      await expect(cartPage.itemQty).toHaveCount(1, { timeout: 10000 });
+      expect(cartPage.itemName).toHaveCount(1);
+      await cartPage.verifyCartContainsProduct(secondProductName, secondProductPrice);
+    });
   });
 
-  test('Add product to cart and continue shopping', async ({ page }) => {
-    // Arrange
-    const loginPage = new LoginPage(page);
-    const productPage = new ProductPage(page);
-    const cartPage = new CartPage(page);
-    await loginPage.goto();
-    await loginPage.login('standard_user', 'secret_sauce');
-    await expect(loginPage.title).toHaveText('Products');
+  test('Add product to cart and continue shopping', async ({ loginPage, productPage, cartPage, page }) => {
+    await test.step('Login to application', async () => {
+      await loginPage.successLogin();
+    });
 
-    // Act 
-    const productName = await productPage.addOneProductAndGoToCart(cartPage);
-    await cartPage.continueShoppingButton.click();
+    const { firstProductName } = await test.step('Get first product information', async () => {
+      const productInfo = await productPage.getFirstTwoProductsFormattedInfo();
+      return { firstProductName: productInfo.firstProductName };
+    });
 
-     // Assert 
-    await page.waitForURL('**/inventory.html');
-    expect(page.url()).toContain('inventory.html');
-    expect(loginPage.title).toHaveText('Products');
+    await test.step('Add one product to cart by name', async () => {
+      await productPage.addProductByNameAndGoToCart(firstProductName);
+    });
+
+    await test.step('Continue shopping', async () => {
+      await cartPage.continueShoppingButton.click();
+    });
+
+    await test.step('Verify return to products page', async () => {
+      await page.waitForURL('**/inventory.html');
+      expect(page.url()).toContain('inventory.html');
+      expect(loginPage.title).toHaveText('Products');
+    });
   });
 
-  test('Add one product to cart and checkout', async ({ page }) => {
-    // Arrange
-    const loginPage = new LoginPage(page);
-    const productPage = new ProductPage(page);
-    const cartPage = new CartPage(page);
-    await loginPage.goto();
-    await loginPage.login('standard_user', 'secret_sauce');
-    await expect(loginPage.title).toHaveText('Products');
+  test('Add one product to cart and checkout', async ({ loginPage, productPage, cartPage, page }) => {
+    await test.step('Login to application', async () => {
+      await loginPage.successLogin();
+    });
 
-    // Act
-    const productName = await productPage.addOneProductAndGoToCart(cartPage);
-    await cartPage.checkoutButton.click();
-    await page.waitForURL('**/checkout-step-one.html');
+    const { firstProductName } = await test.step('Get first product information', async () => {
+      const productInfo = await productPage.getFirstTwoProductsFormattedInfo();
+      return { firstProductName: productInfo.firstProductName };
+    });
 
-    // Assert
-    expect(page.url()).toContain('checkout-step-one.html');
+    await test.step('Add one product to cart by name', async () => {
+      await productPage.addProductByNameAndGoToCart(firstProductName);
+    });
+
+    await test.step('Proceed to checkout', async () => {
+      await cartPage.checkoutButton.click();
+      await page.waitForURL('**/checkout-step-one.html');
+    });
+
+    await test.step('Verify checkout page is displayed', async () => {
+      expect(page.url()).toContain('checkout-step-one.html');
+    });
   });
 
-  test('Add two products, checkout, fill form and verify summary', async ({ page }) => {
-    // Arrange
-    const loginPage = new LoginPage(page);
-    const productPage = new ProductPage(page);
-    const cartPage = new CartPage(page);
-    const checkoutPage = new CheckoutPage(page);
-    await loginPage.goto();
-    await loginPage.login('standard_user', 'secret_sauce');
-    await expect(loginPage.title).toHaveText('Products');
+  test('Add two products, checkout, fill form and verify summary', async ({ loginPage, productPage, cartPage, checkoutPage, page }) => {
+    await test.step('Login to application', async () => {
+      await loginPage.successLogin();
+    });
 
-    //Get products
-    const { firstProductName, secondProductName, firstProductPrice, secondProductPrice } = await productPage.getFirstTwoProductsInfo();
+    const { firstProductName, secondProductName, firstProductPrice, secondProductPrice } = await test.step('Get product information', async () => {
+      const productInfo = await productPage.getFirstTwoProductsFormattedInfo();
+     
+      const firstProductPriceRaw = parseFloat(productInfo.firstProductPrice.replace('$', ''));
+      const secondProductPriceRaw = parseFloat(productInfo.secondProductPrice.replace('$', ''));
+      
+      return {
+        firstProductName: productInfo.firstProductName,
+        secondProductName: productInfo.secondProductName,
+        firstProductPrice: firstProductPriceRaw,
+        secondProductPrice: secondProductPriceRaw
+      };
+    });
 
-    // Calculate expected values
-    const expectedItemTotal = firstProductPrice + secondProductPrice;
-    const expectedTax = expectedItemTotal * 0.08; // 8% tax rate
-    const expectedTotal = expectedItemTotal + expectedTax;
+    await test.step('Calculate expected values', async () => {
+      const expectedItemTotal = firstProductPrice + secondProductPrice;
+      const expectedTax = expectedItemTotal * 0.08; 
+      const expectedTotal = expectedItemTotal + expectedTax;
+    });
     
-    // Act
-    const { firstProductName: cartFirstProductName, secondProductName: cartSecondProductName } = await productPage.addTwoProductsAndGoToCart(cartPage);
-    await cartPage.completeCheckoutStepsBeforeFinish(checkoutPage);
+    await test.step('Add products to cart and complete checkout', async () => {
+      await productPage.addProductsByNameAndGoToCart([firstProductName, secondProductName]);
+      await cartPage.completeCheckoutStepsBeforeFinish(checkoutPage);
+    });
 
-    // Assert 
-    expect(page.url()).toContain('checkout-step-two.html');
+    await test.step('Verify checkout summary page', async () => {
+      expect(page.url()).toContain('checkout-step-two.html');
 
-    const productNames = await checkoutPage.productName.allTextContents();
-    expect(productNames).toContain(firstProductName);
-    expect(productNames).toContain(secondProductName);
-    expect(productNames).toHaveLength(2);
+      const productNames = await checkoutPage.productName.allTextContents();
+      expect(productNames).toContain(firstProductName);
+      expect(productNames).toContain(secondProductName);
+      expect(productNames).toHaveLength(2);
+    });
 
-    await productPage.verifyCheckoutSummaryFormat(checkoutPage);
-    const { itemTotalValue, taxValue, totalValue } = await productPage.parseCheckoutSummaryValues(checkoutPage);
+    await test.step('Verify checkout summary format and calculations', async () => {
+      await productPage.verifyCheckoutSummaryFormat(checkoutPage);
+      const { itemTotalValue, taxValue, totalValue } = await productPage.parseCheckoutSummaryValues(checkoutPage);
 
-    // Verify calculations match expected values
-    expect(itemTotalValue).toBeCloseTo(expectedItemTotal, 2);
-    expect(taxValue).toBeCloseTo(expectedTax, 2);
-    expect(totalValue).toBeCloseTo(expectedTotal, 2);
-    expect(totalValue).toBeCloseTo(itemTotalValue + taxValue, 2);
+      const expectedItemTotal = firstProductPrice + secondProductPrice;
+      const expectedTax = expectedItemTotal * 0.08;
+      const expectedTotal = expectedItemTotal + expectedTax;
+
+      expect(itemTotalValue).toBeCloseTo(expectedItemTotal, 2);
+      expect(taxValue).toBeCloseTo(expectedTax, 2);
+      expect(totalValue).toBeCloseTo(expectedTotal, 2);
+      expect(totalValue).toBeCloseTo(itemTotalValue + taxValue, 2);
+    });
   });
 
-  test('Complete checkout process and verify order completion', async ({ page }) => {
-    // Arrange
-    const loginPage = new LoginPage(page);
-    const productPage = new ProductPage(page);
-    const cartPage = new CartPage(page);
-    const checkoutPage = new CheckoutPage(page);
-    await loginPage.goto();
-    await loginPage.login('standard_user', 'secret_sauce');
-    await expect(loginPage.title).toHaveText('Products');
+  test('Complete checkout process and verify order completion', async ({ loginPage, productPage, cartPage, checkoutPage, page }) => {
+    await test.step('Login to application', async () => {
+      await loginPage.successLogin();
+    });
 
-    // Act 
-    const productName = await productPage.addOneProductAndGoToCart(cartPage);
-    await cartPage.completeCheckoutStepsBeforeFinish(checkoutPage);
-    await checkoutPage.clickFinish();
-    await page.waitForURL('**/checkout-complete.html');
+    const { firstProductName } = await test.step('Get first product information', async () => {
+      const productInfo = await productPage.getFirstTwoProductsFormattedInfo();
+      return { firstProductName: productInfo.firstProductName };
+    });
 
-    // Assert 
-    expect(page.url()).toContain('checkout-complete.html');
-    expect(checkoutPage.thankYouMessage).toHaveText('Thank you for your order!');
-    expect(checkoutPage.orderConfirmationMessage).toHaveText('Your order has been dispatched, and will arrive just as fast as the pony can get there!');
+    await test.step('Add product to cart by name', async () => {
+      await productPage.addProductByNameAndGoToCart(firstProductName);
+    });
+
+    await test.step('Complete checkout process', async () => {
+      await cartPage.completeCheckoutStepsBeforeFinish(checkoutPage);
+      await checkoutPage.clickFinish();
+      await page.waitForURL('**/checkout-complete.html');
+    });
+
+    await test.step('Verify order completion', async () => {
+      expect(page.url()).toContain('checkout-complete.html');
+      expect(checkoutPage.thankYouMessage).toHaveText('Thank you for your order!');
+      expect(checkoutPage.orderConfirmationMessage).toHaveText('Your order has been dispatched, and will arrive just as fast as the pony can get there!');
+    });
   });
 });

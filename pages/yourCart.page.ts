@@ -4,7 +4,8 @@ export class CartPage {
   readonly page: Page;
   readonly yourCartTitle: Locator;
   readonly itemQty: Locator;
-  readonly  itemName: Locator;
+  readonly itemName: Locator;
+  readonly itemPrice: Locator;
   readonly checkoutButton: Locator;
   readonly removeButtons: Locator;
   readonly continueShoppingButton: Locator;
@@ -12,9 +13,10 @@ export class CartPage {
 
   constructor(page: Page) {
     this.page = page;
-    this. yourCartTitle = page.locator('[data-test="title"]');
+    this.yourCartTitle = page.locator('[data-test="title"]');
     this.itemQty = page.locator('[data-test="item-quantity"]');
-    this.itemName = page.locator('[data-test="inventory-item-name"]');   
+    this.itemName = page.locator('[data-test="inventory-item-name"]');
+    this.itemPrice = page.locator('[data-test="inventory-item-price"]');
     this.checkoutButton = page.locator('[data-test="checkout"]');
     this.removeButtons = page.locator('button:has-text("Remove")');
     this.continueShoppingButton = page.locator('[data-test="continue-shopping"]');
@@ -28,5 +30,15 @@ export class CartPage {
     await checkoutPage.fillCheckoutForm('Olena', 'Danchenko', '32000');
     await checkoutPage.clickContinue();
     await this.page.waitForURL('**/checkout-step-two.html');
+  }
+
+  async verifyCartContainsProduct(productName: string, expectedPrice?: string): Promise<void> {
+    await expect(this.yourCartTitle).toHaveText('Your Cart');
+    const cartItem = this.page.locator('[data-test="inventory-item"]').filter({ hasText: productName });
+    await expect(cartItem.locator('[data-test="inventory-item-name"]')).toHaveText(productName);
+    await expect(cartItem.locator('[data-test="item-quantity"]')).toHaveText('1');
+    if (expectedPrice) {
+      await expect(cartItem.locator('[data-test="inventory-item-price"]')).toHaveText(expectedPrice);
+    }
   }
 }

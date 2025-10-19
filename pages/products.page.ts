@@ -16,59 +16,33 @@ export class ProductPage {
     this.sortDropdown = page.locator('[class ="product_sort_container"]');
   }
 
-  async addOneProductAndGoToCart(cartPage: any): Promise<string> {
-    // Add product to cart
-    const products = await this.products.all();
-    const product = products[0];
-    const productName = await product.locator('[data-test="inventory-item-name"]').textContent();
-    const addToCartButton = product.getByRole('button', { name: 'Add to cart' });
-    await addToCartButton.first().click();
-    
-    // Navigate to cart
+  async addProductByNameAndGoToCart(productName: string): Promise<void> {
+    const productItem = this.products.filter({ hasText: productName });
+    const addToCartButton = productItem.getByRole('button', { name: 'Add to cart' });
+    await addToCartButton.click();
+
     await this.cartIcon.click();
     await this.page.waitForURL('**/cart.html');
-    
-    // Verify cart contents
-    await expect(cartPage.yourCartTitle).toHaveText('Your Cart');
-    await expect(cartPage.itemQty.first()).toHaveText('1');
-    await expect(cartPage.itemName.first()).toHaveText(productName || '');
-    
-    return productName || '';
   }
 
-  async addTwoProductsAndGoToCart(cartPage: any): Promise<{ firstProductName: string; secondProductName: string }> {
-    // Add first product (index 0)
-    const products = await this.products.all();
-    const firstProduct = products[0];
-    const firstProductName = await firstProduct.locator('[data-test="inventory-item-name"]').textContent();
-    const addToCartButtonFirst = firstProduct.getByRole('button', { name: 'Add to cart' });
-    await addToCartButtonFirst.first().click();
+
+  async addProductsByNameAndGoToCart(productNames: string[]): Promise<void> {
+    for (const productName of productNames) {
+      const productItem = this.products.filter({ hasText: productName });
+      const addToCartButton = productItem.getByRole('button', { name: 'Add to cart' });
+      await addToCartButton.click();
+    }
     
-    // Add second product (index 1)
-    const secondProduct = products[1];
-    const secondProductName = await secondProduct.locator('[data-test="inventory-item-name"]').textContent();
-    const addToCartButtonSecond = secondProduct.getByRole('button', { name: 'Add to cart' });
-    await addToCartButtonSecond.first().click();
-    
-    // Navigate to cart
     await this.cartIcon.click();
     await this.page.waitForURL('**/cart.html');
-    
-    // Verify cart contents with both products
-    await expect(cartPage.yourCartTitle).toHaveText('Your Cart');
-    await expect(cartPage.itemQty.first()).toHaveText('1');
-    await expect(cartPage.itemName.first()).toHaveText(firstProductName || '');
-    await expect(cartPage.itemQty.nth(1)).toHaveText('1');
-    await expect(cartPage.itemName.nth(1)).toHaveText(secondProductName || '');
-    
-    return { firstProductName: firstProductName || '', secondProductName: secondProductName || '' };
   }
 
-  async getFirstTwoProductsInfo(): Promise<{
+
+  async getFirstTwoProductsFormattedInfo(): Promise<{
     firstProductName: string;
     secondProductName: string;
-    firstProductPrice: number;
-    secondProductPrice: number;
+    firstProductPrice: string;
+    secondProductPrice: string;
   }> {
     const products = await this.products.all();
     const firstProduct = products[0];
@@ -86,10 +60,11 @@ export class ProductPage {
     return {
       firstProductName: firstProductName || '',
       secondProductName: secondProductName || '',
-      firstProductPrice,
-      secondProductPrice
+      firstProductPrice: `$${firstProductPrice.toFixed(2)}`,
+      secondProductPrice: `$${secondProductPrice.toFixed(2)}`
     };
   }
+
 
   async verifyCheckoutSummaryFormat(checkoutPage: any): Promise<void> {
     const actualItemTotal = await checkoutPage.itemTotal.textContent();
@@ -119,5 +94,42 @@ export class ProductPage {
       taxValue,
       totalValue
     };
+  }
+
+  async verifyProductsSortedBy(sortType: 'nameAZ' | 'nameZA' | 'priceLowHigh' | 'priceHighLow'): Promise<void> {
+    const products = await this.products.all();
+    
+    if (sortType === 'nameAZ' || sortType === 'nameZA') {
+      // Verify name sorting
+      const productNames: string[] = [];
+      
+      for (const product of products) {
+        const name = await product.locator('[data-test="inventory-item-name"]').textContent();
+        if (name) productNames.push(name);
+      }
+      
+      const sortedNames = sortType === 'nameAZ' 
+        ? [...productNames].sort()
+        : [...productNames].sort().reverse();
+      
+      expect(productNames).toEqual(sortedNames);
+    } else {
+      // Verify price sorting
+      const productPrices: number[] = [];
+      
+      for (const product of products) {
+        const priceText = await product.locator('[data-test="inventory-item-price"]').textContent();
+        if (priceText) {
+          const price = parseFloat(priceText.replace('$', ''));
+          productPrices.push(price);
+        }
+      }
+      
+      const sortedPrices = sortType === 'priceLowHigh'
+        ? [...productPrices].sort((a, b) => a - b)
+        : [...productPrices].sort((a, b) => b - a);
+      
+      expect(productPrices).toEqual(sortedPrices);
+    }
   }
 }

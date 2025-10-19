@@ -1,154 +1,101 @@
-import { test, expect } from '@playwright/test';
-import { LoginPage } from '../pages/login.page';
-import { ProductPage } from '../pages/products.page';
-import { CartPage } from '../pages/yourCart.page';
+import { test, expect } from '../fixtures/fixtures';
 
-test.describe.parallel('Products page - UI tests', () => {
+test.describe ('Products page - UI tests', () => {
 
-  test('Add one product to the cart', async ({ page }) => {
-    // Arrange
-    const loginPage = new LoginPage(page);
-    const productPage = new ProductPage(page);
-    const cartPage = new CartPage(page);
-    await loginPage.goto();
-    await loginPage.login('standard_user', 'secret_sauce');
-    await expect(loginPage.title).toHaveText('Products');
+  test('Add one product to the cart', async ({ loginPage, productPage, cartPage }) => {
+    await test.step('Login to application', async () => {
+      await loginPage.successLogin();
+    });
 
-    // Act
-    const firstProductName = await productPage.addOneProductAndGoToCart(cartPage);
+    const { firstProductName, firstProductPrice } = await test.step('Get first product information', async () => {
+      const productInfo = await productPage.getFirstTwoProductsFormattedInfo();
+      return {
+        firstProductName: productInfo.firstProductName,
+        firstProductPrice: productInfo.firstProductPrice
+      };
+    });
 
-    // Assert
-    expect (cartPage.yourCartTitle).toHaveText('Your Cart');    
-    expect (cartPage.itemQty.first()).toHaveText('1');
-    expect (cartPage.itemName.first()).toHaveText(firstProductName);
+    await test.step('Add one product to cart and navigate to cart', async () => {
+      await productPage.addProductByNameAndGoToCart(firstProductName);
+    });
+
+    await test.step('Verify cart contains the added product with price', async () => {
+      await cartPage.verifyCartContainsProduct(firstProductName, firstProductPrice);
+    });
   })
 
-  test('Add two products to the cart', async ({ page }) => {
-    // Arrange
-    const loginPage = new LoginPage(page);
-    const productPage = new ProductPage(page);
-    const cartPage = new CartPage(page);
-    await loginPage.goto();
-    await loginPage.login('standard_user', 'secret_sauce');
-    await expect(loginPage.title).toHaveText('Products');
+  test('Add two products to the cart', async ({ loginPage, productPage, cartPage }) => {
+    await test.step('Login to application', async () => {
+      await loginPage.successLogin();
+    });
 
-    // Act
-    const { firstProductName, secondProductName } = await productPage.addTwoProductsAndGoToCart(cartPage);
+    const { firstProductName, secondProductName, firstProductPrice, secondProductPrice } = await test.step('Get product information', async () => {
+      return await productPage.getFirstTwoProductsFormattedInfo();
+    });
 
-    // Assert
-    expect (cartPage.yourCartTitle).toHaveText('Your Cart');    
-    expect (cartPage.itemQty.first()).toHaveText('1');
-    expect (cartPage.itemName.first()).toHaveText(firstProductName);
-    expect(cartPage.itemQty.nth(1)).toHaveText('1');
-    expect (cartPage.itemName.nth(1)).toHaveText(secondProductName);
+    await test.step('Add two products to cart and navigate to cart', async () => {
+      await productPage.addProductsByNameAndGoToCart([firstProductName, secondProductName]);
+    });
+
+    await test.step('Verify cart contains the two added products with prices', async () => {
+      await cartPage.verifyCartContainsProduct(firstProductName, firstProductPrice);
+      await cartPage.verifyCartContainsProduct(secondProductName, secondProductPrice);
+    });
   })
 
-  test('Sort products by name A to Z', async ({ page }) => {
-    // Arrange
-    const loginPage = new LoginPage(page);
-    const productPage = new ProductPage(page);
-    await loginPage.goto();
-    await loginPage.login('standard_user', 'secret_sauce');
-    await expect(loginPage.title).toHaveText('Products');
+  test('Sort products by name A to Z', async ({ loginPage, productPage }) => {
+    await test.step('Login to application', async () => {
+      await loginPage.successLogin();
+    });
 
-    // Act
-    await productPage.sortDropdown.selectOption('az');
+    await test.step('Sort products by name A to Z', async () => {
+      await productPage.sortDropdown.selectOption('az');
+    });
     
-    // Assert
-    const products = await productPage.products.all();
-    const productNames: string[] = [];
-    
-    for (const product of products) {
-      const name = await product.locator('[data-test="inventory-item-name"]').textContent();
-      if (name) productNames.push(name);
-    }
-    
-    const sortedNames = [...productNames].sort();
-    expect(productNames).toEqual(sortedNames);
+    await test.step('Verify products are sorted alphabetically A-Z', async () => {
+      await productPage.verifyProductsSortedBy('nameAZ');
+    });
   })
 
-  test('Sort products by name Z to A', async ({ page }) => {
-    // Arrange
-    const loginPage = new LoginPage(page);
-    const productPage = new ProductPage(page);
-    await loginPage.goto();
-    await loginPage.login('standard_user', 'secret_sauce');
-    await expect(loginPage.title).toHaveText('Products');
+  test('Sort products by name Z to A', async ({ loginPage, productPage }) => {
+    await test.step('Login to application', async () => {
+      await loginPage.successLogin();
+    });
 
-    // Act
-    await productPage.sortDropdown.selectOption('za');
+    await test.step('Sort products by name Z to A', async () => {
+      await productPage.sortDropdown.selectOption('za');
+    });
     
-    // Assert
-    const products = await productPage.products.all();
-    const productNames: string[] = [];
-    
-    for (const product of products) {
-      const name = await product.locator('[data-test="inventory-item-name"]').textContent();
-      if (name) productNames.push(name);
-    }
-    
-    // Verify products are sorted alphabetically Z-A
-    const sortedNames = [...productNames].sort().reverse();
-    expect(productNames).toEqual(sortedNames);
+    await test.step('Verify products are sorted alphabetically Z-A', async () => {
+      await productPage.verifyProductsSortedBy('nameZA');
+    });
   })
 
-  test('Sort products by price low to high', async ({ page }) => {
-    // Arrange
-    const loginPage = new LoginPage(page);
-    const productPage = new ProductPage(page);
-    await loginPage.goto();
-    await loginPage.login('standard_user', 'secret_sauce');
-    await expect(loginPage.title).toHaveText('Products');
+  test('Sort products by price low to high', async ({ loginPage, productPage, page }) => {
+    await test.step('Login to application', async () => {
+      await loginPage.successLogin();
+    });
 
-    // Act
-    await productPage.sortDropdown.selectOption('lohi');
+    await test.step('Sort products by price low to high', async () => {
+      await productPage.sortDropdown.selectOption('lohi');
+    });
     
-    // Assert
-    const products = await productPage.products.all();
-    const productPrices: number[] = [];
-    
-    for (const product of products) {
-      const priceText = await product.locator('[data-test="inventory-item-price"]').textContent();
-      if (priceText) {
-      
-        const price = parseFloat(priceText.replace('$', ''));
-        productPrices.push(price);
-      }
-    }
-    
-    // Verify products are sorted by price low to high
-    const sortedPrices = [...productPrices].sort((a, b) => a - b);
-    expect(productPrices).toEqual(sortedPrices);
-    await page.waitForTimeout(3000);
+    await test.step('Verify products are sorted by price low to high', async () => {
+      await productPage.verifyProductsSortedBy('priceLowHigh');
+    });
   })
 
-  test('Sort products by price high to low', async ({ page }) => {
-    // Arrange
-    const loginPage = new LoginPage(page);
-    const productPage = new ProductPage(page);
-    await loginPage.goto();
-    await loginPage.login('standard_user', 'secret_sauce');
-    await expect(loginPage.title).toHaveText('Products');
+  test('Sort products by price high to low', async ({ loginPage, productPage, page }) => {
+    await test.step('Login to application', async () => {
+      await loginPage.successLogin();
+    });
 
-    // Act
-    await productPage.sortDropdown.selectOption('hilo');
+    await test.step('Sort products by price high to low', async () => {
+      await productPage.sortDropdown.selectOption('hilo');
+    });
     
-    // Assert
-    const products = await productPage.products.all();
-    const productPrices: number[] = [];
-    
-    for (const product of products) {
-      const priceText = await product.locator('[data-test="inventory-item-price"]').textContent();
-      if (priceText) {
-      
-        const price = parseFloat(priceText.replace('$', ''));
-        productPrices.push(price);
-      }
-    }
-    
-    // Verify products are sorted by price high to low
-    const sortedPrices = [...productPrices].sort((a, b) => b - a);
-    expect(productPrices).toEqual(sortedPrices);
-    await page.waitForTimeout(3000);
+    await test.step('Verify products are sorted by price high to low', async () => {
+      await productPage.verifyProductsSortedBy('priceHighLow');
+    });
   });
 });
